@@ -318,8 +318,12 @@ type web3API struct {
 }
 
 // ClientVersion returns the node name
-func (s *web3API) ClientVersion() string {
-	return s.stack.Server().Name
+func (s *web3API) ClientVersion() (string, error) {
+	server := s.stack.Server()
+	if server == nil {
+		return "", ErrNodeStopped
+	}
+	return server.Name, nil
 }
 
 // Sha3 applies the ethereum sha3 implementation on the input.
