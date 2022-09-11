@@ -213,7 +213,7 @@ func (b *LesApiBackend) GetPoolNonce(ctx context.Context, addr common.Address) (
 }
 
 func (b *LesApiBackend) Stats() (pending int, queued int) {
-	return b.eth.txPool.Stats(), 0
+	return b.eth.txPool.Stats()
 }
 
 func (b *LesApiBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
