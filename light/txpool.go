@@ -334,12 +334,12 @@ func (pool *TxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subsc
 }
 
 // Stats returns the number of currently pending (locally created) transactions
-func (pool *TxPool) Stats() (pending int) {
+func (pool *TxPool) Stats() (int, int) {
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
 
-	pending = len(pool.pending)
-	return
+	// There are no queued transactions in a light pool, just return zero.
+	return len(pool.pending), 0
 }
 
 // validateTx checks whether a transaction is valid according to the consensus rules.
