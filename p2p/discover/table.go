@@ -138,7 +138,7 @@ func (tab *Table) seedRand() {
 	tab.mutex.Unlock()
 }
 
-// node: callers must hold tab.mutex
+// note: callers must hold tab.mutex
 func (tab *Table) allNodes() []*enode.Node {
 	var nodes []*enode.Node
 	for _, b := range &tab.buckets {
