@@ -272,6 +272,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("content-type")); err != nil {
+		for _, accepted := range acceptedContentTypes {
+			if accepted == mt {
+				r.Header.Set("content-type", contentType)
+			}
+		}
+	}
 	if code, err := validateRequest(r); err != nil {
 		http.Error(w, err.Error(), code)
 		return
@@ -310,14 +317,10 @@ func validateRequest(r *http.Request) (int, error) {
 		return 0, nil
 	}
 	// Check content-type
-	if mt, _, err := mime.ParseMediaType(r.Header.Get("content-type")); err == nil {
-		for _, accepted := range acceptedContentTypes {
-			if accepted == mt {
-				return 0, nil
-			}
-		}
+	if r.Header.Get("content-type") == contentType {
+		return 0, nil
 	}
 	// Invalid content-type
-	err := fmt.Errorf("invalid content type, only %q are supported", acceptedContentTypes)
+	err := fmt.Errorf("invalid content type, only %s is supported", contentType)
 	return http.StatusUnsupportedMediaType, err
 }
