@@ -19,6 +19,8 @@ package nat
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 	"net"
 	"strings"
 	"sync"
@@ -88,12 +90,27 @@ func (n *upnp) AddMapping(protocol string, extport, intport int, desc string, li
 	err = n.withRateLimit(func() error {
 		return n.client.AddPortMapping("", uint16(extport), protocol, uint16(intport), ip.String(), true, desc, lifetimeS)
 	})
-	if err != nil {
-		return 0, err
+	if err == nil {
+		return uint16(extport), nil
 	}
-	// UPnP simply returns an error if the requested port is already in use.
-	// Returns the requested port because no alternate port occurs.
-	return uint16(extport), nil
+
+	return uint16(extport), n.withRateLimit(func() error {
+		p, err := n.addAnyPortMapping(protocol, extport, intport, ip, desc, lifetimeS)
+		if err == nil {
+			extport = int(p)
+		}
+		return err
+	})
+}
+
+func (n *upnp) addAnyPortMapping(protocol string, extport, intport int, ip net.IP, desc string, lifetimeS uint32) (uint16, error) {
+	if client, ok := n.client.(*internetgateway2.WANIPConnection2); ok {
+		return client.AddAnyPortMapping("", uint16(extport), protocol, uint16(intport), ip.String(), true, desc, lifetimeS)
+	}
+	// It will retry with a random port number if the client does
+	// not support AddAnyPortMapping.
+	extport = randomPort()
+	return uint16(extport), n.client.AddPortMapping("", uint16(extport), protocol, uint16(intport), ip.String(), true, desc, lifetimeS)
 }
 
 func (n *upnp) internalAddress() (net.IP, error) {
@@ -218,4 +235,9 @@ func discover(out chan<- *upnp, target string, matcher func(goupnp.ServiceClient
 	if !found {
 		out <- nil
 	}
+}
+
+func randomPort() int {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(math.MaxUint16-10000) + 10000
 }
