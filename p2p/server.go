@@ -575,7 +575,6 @@ func (srv *Server) setupDiscovery() error {
 	srv.log.Debug("UDP listener up", "addr", realaddr)
 	if srv.NAT != nil {
 		if !realaddr.IP.IsLoopback() {
-			//
 			intport, extport := realaddr.Port, realaddr.Port
 			p, err := srv.NAT.AddMapping("udp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
@@ -691,7 +690,8 @@ func (srv *Server) setupListening() error {
 	srv.ListenAddr = listener.Addr().String()
 
 	// Update the local node record and map the TCP listening port if NAT is configured.
-	if tcp, ok := listener.Addr().(*net.TCPAddr); ok {
+	tcp, ok := listener.Addr().(*net.TCPAddr)
+	if ok && srv.NAT != nil {
 		intport, extport := tcp.Port, tcp.Port
 		p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
 		if err != nil {

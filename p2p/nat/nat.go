@@ -97,16 +97,14 @@ const (
 // Map adds a port mapping on m and keeps it alive until c is closed.
 // This function is typically invoked in its own goroutine.
 func Map(m Interface, c <-chan struct{}, protocol string, extport, intport int, name string) {
-	mapTimeout := DefaultMapTimeout
-
 	log := log.New("proto", protocol, "extport", extport, "intport", intport, "interface", m)
-	refresh := time.NewTimer(mapTimeout)
+	refresh := time.NewTimer(DefaultMapTimeout)
 	defer func() {
 		refresh.Stop()
 		log.Debug("Deleting port mapping")
 		m.DeleteMapping(protocol, extport, intport)
 	}()
-	if _, err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
+	if _, err := m.AddMapping(protocol, extport, intport, name, DefaultMapTimeout); err != nil {
 		log.Debug("Couldn't add port mapping", "err", err)
 	} else {
 		log.Info("Mapped network port")
@@ -119,10 +117,10 @@ func Map(m Interface, c <-chan struct{}, protocol string, extport, intport int, 
 			}
 		case <-refresh.C:
 			log.Trace("Refreshing port mapping")
-			if _, err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
+			if _, err := m.AddMapping(protocol, extport, intport, name, DefaultMapTimeout); err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
 			}
-			refresh.Reset(mapTimeout)
+			refresh.Reset(DefaultMapTimeout)
 		}
 	}
 }
