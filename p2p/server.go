@@ -581,6 +581,9 @@ func (srv *Server) setupDiscovery() error {
 			// [NEED TO REMOVE] In this case, if the NAT doesn't respond, it will block for
 			// a long time. Have to decide whether we want to do the rest after the mapping,
 			// or run the goroutine and do the work first.
+			//
+			// Currently, it is not possible to distinguish whether the log is about for
+			// 'ethereum p2p' or 'ethereum discovery'.
 			p, err := srv.NAT.AddMapping("udp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
 				srv.log.Debug("Couldn't add port mapping", "err", err)
@@ -701,6 +704,9 @@ func (srv *Server) setupListening() error {
 			// [NEED TO REMOVE] In this case, if the NAT doesn't respond, it will block for
 			// a long time. Have to decide whether we want to do the rest after the mapping,
 			// or run the goroutine and do the work first.
+			//
+			// Currently, it is not possible to distinguish whether the log is about for
+			// 'ethereum p2p' or 'ethereum discovery'.
 			p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
 				srv.log.Debug("Couldn't add port mapping", "err", err)
