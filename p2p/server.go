@@ -573,9 +573,11 @@ func (srv *Server) setupDiscovery() error {
 	}
 	realaddr := conn.LocalAddr().(*net.UDPAddr)
 	srv.log.Debug("UDP listener up", "addr", realaddr)
+
+	intport, extport := realaddr.Port, realaddr.Port
 	if srv.NAT != nil {
 		if !realaddr.IP.IsLoopback() {
-			intport, extport := realaddr.Port, realaddr.Port
+
 			p, err := srv.NAT.AddMapping("udp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
 				srv.log.Debug("Couldn't add port mapping", "err", err)
@@ -585,8 +587,6 @@ func (srv *Server) setupDiscovery() error {
 				extport = int(p)
 			}
 
-			srv.localnode.SetFallbackUDP(extport)
-
 			srv.loopWG.Add(1)
 			go func() {
 				srv.natRefresh(srv.NAT, "udp", intport, extport, "ethereum discovery", nat.DefaultMapTimeout)
@@ -594,6 +594,7 @@ func (srv *Server) setupDiscovery() error {
 			}()
 		}
 	}
+	srv.localnode.SetFallbackUDP(extport)
 
 	// Discovery V4
 	var unhandled chan discover.ReadPacket
@@ -691,26 +692,26 @@ func (srv *Server) setupListening() error {
 
 	// Update the local node record and map the TCP listening port if NAT is configured.
 	tcp, ok := listener.Addr().(*net.TCPAddr)
-	if ok && srv.NAT != nil {
-		intport, extport := tcp.Port, tcp.Port
-		p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
-		if err != nil {
-			srv.log.Debug("Couldn't add port mapping", "err", err)
-		}
-		if err == nil && p != uint16(tcp.Port) {
-			srv.log.Debug("Already used port", tcp.Port, "use alternative port", p)
-			extport = int(p)
-		}
-
-		srv.localnode.Set(enr.TCP(extport))
-
+	intport, extport := tcp.Port, tcp.Port
+	if ok {
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
+			p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
+			if err != nil {
+				srv.log.Debug("Couldn't add port mapping", "err", err)
+			}
+			if err == nil && p != uint16(tcp.Port) {
+				srv.log.Debug("Already used port", tcp.Port, "use alternative port", p)
+				extport = int(p)
+			}
+
 			srv.loopWG.Add(1)
 			go func() {
 				srv.natRefresh(srv.NAT, "tcp", intport, extport, "ethereum p2p", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
+
+		srv.localnode.Set(enr.TCP(extport))
 	}
 
 	srv.loopWG.Add(1)
