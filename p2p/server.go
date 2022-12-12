@@ -734,40 +734,38 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 	log := log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
 
 	refresh := time.NewTimer(mapTimeout)
+	defer func() {
+		refresh.Stop()
+		log.Debug("Deleting port mapping")
+		natm.DeleteMapping(protocol, external, internal)
+	}()
+
 	for {
-		defer func() {
-			refresh.Stop()
-			log.Debug("Deleting port mapping")
-			natm.DeleteMapping(protocol, external, internal)
-		}()
-
-		for {
-			select {
-			case _, ok := <-srv.quit:
-				if !ok {
-					return
-				}
-			case <-refresh.C:
-				log.Trace("Refreshing port mapping")
-				p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
-				if err != nil {
-					log.Debug("Couldn't add port mapping", "err", err)
-				}
-				if p != uint16(external) {
-					log.Debug("Already mapped port", external, "use alternative port", p)
-					external = int(p)
-
-					switch protocol {
-					case "tcp":
-						srv.changeport <- enr.TCP(external)
-					case "udp":
-						srv.changeport <- enr.UDP(external)
-					}
-					// Reset logger because extenral port number is changed.
-					log = log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
-				}
-				refresh.Reset(mapTimeout)
+		select {
+		case _, ok := <-srv.quit:
+			if !ok {
+				return
 			}
+		case <-refresh.C:
+			log.Trace("Refreshing port mapping")
+			p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
+			if err != nil {
+				log.Debug("Couldn't add port mapping", "err", err)
+			}
+			if p != uint16(external) {
+				log.Debug("Already mapped port", external, "use alternative port", p)
+				external = int(p)
+
+				switch protocol {
+				case "tcp":
+					srv.changeport <- enr.TCP(external)
+				case "udp":
+					srv.changeport <- enr.UDP(external)
+				}
+				// Reset logger because extenral port number is changed.
+				log = log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
+			}
+			refresh.Reset(mapTimeout)
 		}
 	}
 }
