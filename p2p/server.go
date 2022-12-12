@@ -191,7 +191,7 @@ type Server struct {
 
 	// Channels into the run loop.
 	quit                    chan struct{}
-	changedport             chan enr.Entry
+	changeport              chan enr.Entry
 	addtrusted              chan *enode.Node
 	removetrusted           chan *enode.Node
 	peerOp                  chan peerOpFunc
@@ -467,7 +467,7 @@ func (srv *Server) Start() (err error) {
 		srv.listenFunc = net.Listen
 	}
 	srv.quit = make(chan struct{})
-	srv.changedport = make(chan enr.Entry)
+	srv.changeport = make(chan enr.Entry)
 	srv.delpeer = make(chan peerDrop)
 	srv.checkpointPostHandshake = make(chan *conn)
 	srv.checkpointAddPeer = make(chan *conn)
@@ -739,9 +739,9 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 
 					switch protocol {
 					case "tcp":
-						srv.changedport <- enr.TCP(external)
+						srv.changeport <- enr.TCP(external)
 					case "udp":
-						srv.changedport <- enr.UDP(external)
+						srv.changeport <- enr.UDP(external)
 					}
 				}
 				refresh.Reset(mapTimeout)
@@ -785,7 +785,7 @@ running:
 			// The server was stopped. Run the cleanup logic.
 			break running
 
-		case entry := <-srv.changedport:
+		case entry := <-srv.changeport:
 			srv.localnode.Set(entry)
 
 		case n := <-srv.addtrusted:
