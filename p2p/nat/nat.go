@@ -168,7 +168,7 @@ func UPnP() Interface {
 // address is nil, PMP will attempt to auto-discover the router.
 func PMP(gateway net.IP) Interface {
 	if gateway != nil {
-		return &pmp{gw: gateway, c: natpmp.NewClient(gateway), portchanged: make(chan uint16, 2)}
+		return &pmp{gw: gateway, c: natpmp.NewClient(gateway)}
 	}
 	return startautodisc("NAT-PMP", discoverPMP)
 }

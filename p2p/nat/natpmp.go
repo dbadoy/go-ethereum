@@ -30,11 +30,6 @@ import (
 type pmp struct {
 	gw net.IP
 	c  *natpmp.Client
-
-	// NAT-PMP's AddPortMapping result has many fields, not just mapped ports.
-	// However, there is no case where those field values are used yet, and if
-	// they occur later, channels will be added.
-	portchanged chan uint16
 }
 
 func (n *pmp) String() string {
@@ -73,10 +68,6 @@ func (n *pmp) DeleteMapping(protocol string, extport, intport int) (err error) {
 	return err
 }
 
-func (n *pmp) AlternativePort() chan uint16 {
-	return n.portchanged
-}
-
 func discoverPMP() Interface {
 	// run external address lookups on all potential gateways
 	gws := potentialGateways()
@@ -88,7 +79,7 @@ func discoverPMP() Interface {
 			if _, err := c.GetExternalAddress(); err != nil {
 				found <- nil
 			} else {
-				found <- &pmp{gw, c, make(chan uint16, 2)}
+				found <- &pmp{gw, c}
 			}
 		}()
 	}
