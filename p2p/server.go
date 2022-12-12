@@ -583,7 +583,7 @@ func (srv *Server) setupDiscovery() error {
 		if !realaddr.IP.IsLoopback() {
 			srv.loopWG.Add(1)
 			go func() {
-				srv.natRefresh(srv.NAT, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
+				srv.natRefresh(srv.NAT, "udp", realaddr.Port, realaddr.Port, "ethereum discovery", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
@@ -700,7 +700,7 @@ func (srv *Server) setupListening() error {
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
 			srv.loopWG.Add(1)
 			go func() {
-				srv.natRefresh(srv.NAT, "tcp", intport, extport, "ethereum p2p")
+				srv.natRefresh(srv.NAT, "tcp", intport, extport, "ethereum p2p", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
@@ -711,11 +711,11 @@ func (srv *Server) setupListening() error {
 	return nil
 }
 
-func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extport int, name string) {
+func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extport int, name string, interval time.Duration) {
 	var (
 		internal   = intport
 		external   = extport
-		mapTimeout = nat.DefaultMapTimeout
+		mapTimeout = interval
 	)
 	log := log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
 
