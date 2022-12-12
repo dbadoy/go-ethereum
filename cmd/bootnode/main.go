@@ -143,11 +143,9 @@ func main() {
 						log.Debug("Couldn't add port mapping", "err", err)
 					}
 					if p != uint16(external) {
-						// #1
-						realaddr.Port = int(p)
-						printNotice(&nodeKey.PublicKey, *realaddr)
-
-						// #2
+						// If the port mapping is changed after the boot node is executed and the
+						// url is shared, there is no point in continuing the node. In this case,
+						// re-execute with an available port and share the url again.
 						natm.DeleteMapping(protocol, int(p), internal)
 						panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", external, p))
 					}
