@@ -111,28 +111,28 @@ func main() {
 
 	realaddr := conn.LocalAddr().(*net.UDPAddr)
 	if natm != nil {
-		if !realaddr.IP.IsLoopback() {
-			var (
-				protocol   = "udp"
-				name       = "ethereum discovery"
-				internal   = realaddr.Port
-				external   = realaddr.Port
-				mapTimeout = nat.DefaultMapTimeout
-			)
-			log := log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
+		var (
+			protocol   = "udp"
+			name       = "ethereum discovery"
+			intport    = realaddr.Port
+			extport    = realaddr.Port
+			mapTimeout = nat.DefaultMapTimeout
+		)
 
-			p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
+		if !realaddr.IP.IsLoopback() {
+			log := log.New("proto", protocol, "extport", extport, "intport", intport, "interface", natm)
+
+			p, err := natm.AddMapping(protocol, extport, intport, name, mapTimeout)
 			if err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
 			}
-			if p == uint16(external) {
+			if p == uint16(extport) {
 				log.Info("Mapped network port")
 			} else {
-				log.Debug("Already mapped port by another peers", external, "use alternative port", p)
-				external = int(p)
-				realaddr.Port = external
+				log.Debug("Already mapped port by another peers", extport, "use alternative port", p)
+				extport = int(p)
 
-				log = log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
+				log = log.New("proto", protocol, "extport", extport, "intport", intport, "interface", natm)
 			}
 
 			go func() {
@@ -140,23 +140,23 @@ func main() {
 				for {
 					<-refresh.C
 					log.Trace("Refreshing port mapping")
-					p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
+					p, err := natm.AddMapping(protocol, extport, intport, name, mapTimeout)
 					if err != nil {
 						log.Debug("Couldn't add port mapping", "err", err)
 					}
-					if p != uint16(external) {
+					if p != uint16(extport) {
 						// If the port mapping is changed after the boot node is executed and the
 						// URL is shared, there is no point in continuing the node. In this case,
 						// re-execute with an available port and share the URL again.
-						natm.DeleteMapping(protocol, int(p), internal)
-						panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", external, p))
+						natm.DeleteMapping(protocol, int(p), intport)
+						panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", extport, p))
 					}
 					refresh.Reset(mapTimeout)
 				}
 			}()
 		}
-		if ext, err := natm.ExternalIP(); err == nil {
-			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
+		if extip, err := natm.ExternalIP(); err == nil {
+			realaddr = &net.UDPAddr{IP: extip, Port: extport}
 		}
 	}
 
