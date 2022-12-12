@@ -128,9 +128,11 @@ func main() {
 			if p == uint16(external) {
 				log.Info("Mapped network port")
 			} else {
-				log.Debug("Already used port by another peers", external, "use alternative port", p)
+				log.Debug("Already mapped port by another peers", external, "use alternative port", p)
 				external = int(p)
 				realaddr.Port = external
+
+				log = log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
 			}
 
 			go func() {
@@ -144,8 +146,8 @@ func main() {
 					}
 					if p != uint16(external) {
 						// If the port mapping is changed after the boot node is executed and the
-						// url is shared, there is no point in continuing the node. In this case,
-						// re-execute with an available port and share the url again.
+						// URL is shared, there is no point in continuing the node. In this case,
+						// re-execute with an available port and share the URL again.
 						natm.DeleteMapping(protocol, int(p), internal)
 						panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", external, p))
 					}

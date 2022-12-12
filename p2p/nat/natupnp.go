@@ -85,11 +85,15 @@ func (n *upnp) AddMapping(protocol string, extport, intport int, desc string, li
 	lifetimeS := uint32(lifetime / time.Second)
 	n.DeleteMapping(protocol, extport, intport)
 
-	// UPnP simply returns an error if the requested port is already in use.
-	// Returns the requested port because no alternate port occurs.
-	return uint16(extport), n.withRateLimit(func() error {
+	err = n.withRateLimit(func() error {
 		return n.client.AddPortMapping("", uint16(extport), protocol, uint16(intport), ip.String(), true, desc, lifetimeS)
 	})
+	if err != nil {
+		return 0, err
+	}
+	// UPnP simply returns an error if the requested port is already in use.
+	// Returns the requested port because no alternate port occurs.
+	return uint16(extport), nil
 }
 
 func (n *upnp) internalAddress() (net.IP, error) {

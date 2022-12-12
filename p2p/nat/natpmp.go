@@ -55,11 +55,12 @@ func (n *pmp) AddMapping(protocol string, extport, intport int, name string, lif
 		return 0, err
 	}
 
-	// NAT-PMP maps an alternative available port number if the requested
-	// port is already mapped to another address and returns success.
+	// NAT-PMP maps an alternative available port number if the requested port
+	// is already mapped to another address and returns success. Handling of
+	// alternate port numbers is done by the caller.
 	//
-	// The result of AddPortMapping has several fields, but returns only
-	// MappedExternalPort(there are no cases where other fields are used).
+	// note: The result of AddPortMapping has several fields, but returns only
+	// MappedExternalPort(no other fields are used).
 	return res.MappedExternalPort, nil
 }
 

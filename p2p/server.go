@@ -577,13 +577,16 @@ func (srv *Server) setupDiscovery() error {
 	intport, extport := realaddr.Port, realaddr.Port
 	if srv.NAT != nil {
 		if !realaddr.IP.IsLoopback() {
-
+			srv.log.Info("Start Adding Maps to NAT")
+			// [NEED TO REMOVE] In this case, if the NAT doesn't respond, it will block for
+			// a long time. Have to decide whether we want to do the rest after the mapping,
+			// or run the goroutine and do the work first.
 			p, err := srv.NAT.AddMapping("udp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
 				srv.log.Debug("Couldn't add port mapping", "err", err)
 			}
 			if err == nil && p != uint16(realaddr.Port) {
-				srv.log.Debug("Already used port", realaddr.Port, "use alternative port", p)
+				srv.log.Debug("Already mapped port", realaddr.Port, "use alternative port", p)
 				extport = int(p)
 			}
 
@@ -695,12 +698,16 @@ func (srv *Server) setupListening() error {
 	if ok {
 		intport, extport := tcp.Port, tcp.Port
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
+			srv.log.Info("Start Adding Maps to NAT")
+			// [NEED TO REMOVE] In this case, if the NAT doesn't respond, it will block for
+			// a long time. Have to decide whether we want to do the rest after the mapping,
+			// or run the goroutine and do the work first.
 			p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
 				srv.log.Debug("Couldn't add port mapping", "err", err)
 			}
 			if err == nil && p != uint16(tcp.Port) {
-				srv.log.Debug("Already used port", tcp.Port, "use alternative port", p)
+				srv.log.Debug("Already mapped port", tcp.Port, "use alternative port", p)
 				extport = int(p)
 			}
 
@@ -748,7 +755,7 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 					log.Debug("Couldn't add port mapping", "err", err)
 				}
 				if p != uint16(external) {
-					log.Debug("Already used port", external, "use alternative port", p)
+					log.Debug("Already mapped port", external, "use alternative port", p)
 					external = int(p)
 
 					switch protocol {
@@ -802,7 +809,7 @@ running:
 			break running
 
 		case entry := <-srv.changeport:
-			// Add validation logic for 'is entry about port(tcp, tcp6, udp, udp6)?
+			// [NEED TO REMOVE] entry validation logic? 'is the entry about port(TCP, UDP...)?'
 			srv.localnode.Set(entry)
 
 		case n := <-srv.addtrusted:
