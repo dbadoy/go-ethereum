@@ -190,11 +190,8 @@ type Server struct {
 	dialsched *dialScheduler
 
 	// Channels into the run loop.
-	quit        chan struct{}
-	changedport chan struct {
-		protocol string
-		port     uint16
-	}
+	quit                    chan struct{}
+	changedport             chan enr.Entry
 	addtrusted              chan *enode.Node
 	removetrusted           chan *enode.Node
 	peerOp                  chan peerOpFunc
@@ -470,10 +467,7 @@ func (srv *Server) Start() (err error) {
 		srv.listenFunc = net.Listen
 	}
 	srv.quit = make(chan struct{})
-	srv.changedport = make(chan struct {
-		protocol string
-		port     uint16
-	})
+	srv.changedport = make(chan enr.Entry)
 	srv.delpeer = make(chan peerDrop)
 	srv.checkpointPostHandshake = make(chan *conn)
 	srv.checkpointAddPeer = make(chan *conn)
@@ -742,10 +736,13 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 				if p != uint16(external) {
 					log.Debug("Already used port", external, "use alternative port", p)
 					external = int(p)
-					srv.changedport <- struct {
-						protocol string
-						port     uint16
-					}{protocol, p}
+
+					switch protocol {
+					case "tcp":
+						srv.changedport <- enr.TCP(external)
+					case "udp":
+						srv.changedport <- enr.UDP(external)
+					}
 				}
 				refresh.Reset(mapTimeout)
 			}
@@ -788,13 +785,8 @@ running:
 			// The server was stopped. Run the cleanup logic.
 			break running
 
-		case m := <-srv.changedport:
-			switch m.protocol {
-			case "tcp":
-				srv.localnode.Set(enr.TCP(m.port))
-			case "udp":
-				srv.localnode.Set(enr.UDP(m.port))
-			}
+		case entry := <-srv.changedport:
+			srv.localnode.Set(entry)
 
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add a node
