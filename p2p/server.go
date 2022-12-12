@@ -575,14 +575,26 @@ func (srv *Server) setupDiscovery() error {
 	srv.log.Debug("UDP listener up", "addr", realaddr)
 	if srv.NAT != nil {
 		if !realaddr.IP.IsLoopback() {
+			//
+			intport, extport := realaddr.Port, realaddr.Port
+			p, err := srv.NAT.AddMapping("udp", intport, extport, "", nat.DefaultMapTimeout)
+			if err != nil {
+				srv.log.Debug("Couldn't add port mapping", "err", err)
+			}
+			if err == nil && p != uint16(realaddr.Port) {
+				srv.log.Debug("Already used port", realaddr.Port, "use alternative port", p)
+				extport = int(p)
+			}
+
+			srv.localnode.SetFallbackUDP(extport)
+
 			srv.loopWG.Add(1)
 			go func() {
-				srv.natRefresh(srv.NAT, "udp", realaddr.Port, realaddr.Port, "ethereum discovery", nat.DefaultMapTimeout)
+				srv.natRefresh(srv.NAT, "udp", intport, extport, "ethereum discovery", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
 	}
-	srv.localnode.SetFallbackUDP(realaddr.Port)
 
 	// Discovery V4
 	var unhandled chan discover.ReadPacket
@@ -683,9 +695,10 @@ func (srv *Server) setupListening() error {
 		intport, extport := tcp.Port, tcp.Port
 		p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
 		if err != nil {
-			//
+			srv.log.Debug("Couldn't add port mapping", "err", err)
 		}
-		if p != uint16(tcp.Port) {
+		if err == nil && p != uint16(tcp.Port) {
+			srv.log.Debug("Already used port", tcp.Port, "use alternative port", p)
 			extport = int(p)
 		}
 
@@ -743,6 +756,8 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 					case "udp":
 						srv.changeport <- enr.UDP(external)
 					}
+					// Reset logger because extenral port number is changed.
+					log = log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
 				}
 				refresh.Reset(mapTimeout)
 			}
@@ -786,6 +801,7 @@ running:
 			break running
 
 		case entry := <-srv.changeport:
+			// Add validation logic for 'is entry about port(tcp, tcp6, udp, udp6)?
 			srv.localnode.Set(entry)
 
 		case n := <-srv.addtrusted:
