@@ -692,8 +692,8 @@ func (srv *Server) setupListening() error {
 
 	// Update the local node record and map the TCP listening port if NAT is configured.
 	tcp, ok := listener.Addr().(*net.TCPAddr)
-	intport, extport := tcp.Port, tcp.Port
 	if ok {
+		intport, extport := tcp.Port, tcp.Port
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
 			p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
 			if err != nil {
