@@ -45,6 +45,11 @@ type Interface interface {
 	// address of the gateway device.
 	ExternalIP() (net.IP, error)
 
+	// Channel for the current NAT state.
+	//
+	// AlternativePort detects maps alternative port in NAT-PMP.
+	AlternativePort() chan uint16
+
 	// String should return name of the method. This is used for logging.
 	String() string
 }
@@ -121,6 +126,8 @@ func Map(m Interface, c <-chan struct{}, protocol string, extport, intport int, 
 				log.Debug("Couldn't add port mapping", "err", err)
 			}
 			refresh.Reset(mapTimeout)
+		case p := <-m.AlternativePort():
+			log.Debug("Requested port already used, use alternative port", p)
 		}
 	}
 }
@@ -137,6 +144,7 @@ func (n ExtIP) String() string              { return fmt.Sprintf("ExtIP(%v)", ne
 
 func (ExtIP) AddMapping(string, int, int, string, time.Duration) error { return nil }
 func (ExtIP) DeleteMapping(string, int, int) error                     { return nil }
+func (ExtIP) AlternativePort() chan uint16                             { return nil }
 
 // Any returns a port mapper that tries to discover any supported
 // mechanism on the local network.
@@ -167,7 +175,7 @@ func UPnP() Interface {
 // address is nil, PMP will attempt to auto-discover the router.
 func PMP(gateway net.IP) Interface {
 	if gateway != nil {
-		return &pmp{gw: gateway, c: natpmp.NewClient(gateway)}
+		return &pmp{gw: gateway, c: natpmp.NewClient(gateway), portchanged: make(chan uint16, 2)}
 	}
 	return startautodisc("NAT-PMP", discoverPMP)
 }
@@ -212,6 +220,10 @@ func (n *autodisc) ExternalIP() (net.IP, error) {
 		return nil, err
 	}
 	return n.found.ExternalIP()
+}
+
+func (n *autodisc) AlternativePort() chan uint16 {
+	return n.found.AlternativePort()
 }
 
 func (n *autodisc) String() string {

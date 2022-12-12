@@ -112,6 +112,12 @@ func main() {
 	if natm != nil {
 		if !realaddr.IP.IsLoopback() {
 			go nat.Map(natm, nil, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
+			go func() {
+				for p := range natm.AlternativePort() {
+					natm.DeleteMapping("udp", int(p), realaddr.Port)
+					panic(fmt.Errorf("port %d already mapped to another address", realaddr.Port))
+				}
+			}()
 		}
 		if ext, err := natm.ExternalIP(); err == nil {
 			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}

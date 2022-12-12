@@ -119,6 +119,12 @@ func (n *upnp) DeleteMapping(protocol string, extport, intport int) error {
 	})
 }
 
+// UPnP simply returns an error if the requested port is
+// already in use, so here is no port change.
+func (n *upnp) AlternativePort() chan uint16 {
+	return nil
+}
+
 func (n *upnp) String() string {
 	return "UPNP " + n.service
 }

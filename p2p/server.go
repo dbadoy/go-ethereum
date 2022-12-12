@@ -190,7 +190,11 @@ type Server struct {
 	dialsched *dialScheduler
 
 	// Channels into the run loop.
-	quit                    chan struct{}
+	quit        chan struct{}
+	changedport chan struct {
+		protocol string
+		port     uint16
+	}
 	addtrusted              chan *enode.Node
 	removetrusted           chan *enode.Node
 	peerOp                  chan peerOpFunc
@@ -466,6 +470,10 @@ func (srv *Server) Start() (err error) {
 		srv.listenFunc = net.Listen
 	}
 	srv.quit = make(chan struct{})
+	srv.changedport = make(chan struct {
+		protocol string
+		port     uint16
+	})
 	srv.delpeer = make(chan peerDrop)
 	srv.checkpointPostHandshake = make(chan *conn)
 	srv.checkpointAddPeer = make(chan *conn)
@@ -578,6 +586,18 @@ func (srv *Server) setupDiscovery() error {
 				nat.Map(srv.NAT, srv.quit, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
 				srv.loopWG.Done()
 			}()
+			go func() {
+				// or use srv.changedport
+				for p := range srv.NAT.AlternativePort() {
+					realaddr.Port = int(p)
+					srv.changedport <- struct {
+						protocol string
+						port     uint16
+					}{"udp", p}
+					// srv.localnode.Set(enr.UDP(p))
+				}
+
+			}()
 		}
 	}
 	srv.localnode.SetFallbackUDP(realaddr.Port)
@@ -685,6 +705,16 @@ func (srv *Server) setupListening() error {
 				nat.Map(srv.NAT, srv.quit, "tcp", tcp.Port, tcp.Port, "ethereum p2p")
 				srv.loopWG.Done()
 			}()
+			go func() {
+				for p := range srv.NAT.AlternativePort() {
+					tcp.Port = int(p)
+					srv.changedport <- struct {
+						protocol string
+						port     uint16
+					}{"tcp", p}
+					// srv.localnode.Set(enr.TCP(tcp.Port))
+				}
+			}()
 		}
 	}
 
@@ -727,6 +757,14 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
+
+		case m := <-srv.changedport:
+			switch m.protocol {
+			case "tcp":
+				srv.localnode.Set(enr.TCP(m.port))
+			case "udp":
+				srv.localnode.Set(enr.UDP(m.port))
+			}
 
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add a node

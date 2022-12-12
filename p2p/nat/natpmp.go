@@ -30,6 +30,11 @@ import (
 type pmp struct {
 	gw net.IP
 	c  *natpmp.Client
+
+	// NAT-PMP's AddPortMapping result has many fields, not just mapped ports.
+	// However, there is no case where those field values are used yet, and if
+	// they occur later, channels will be added.
+	portchanged chan uint16
 }
 
 func (n *pmp) String() string {
@@ -56,12 +61,17 @@ func (n *pmp) AddMapping(protocol string, extport, intport int, name string, lif
 	}
 
 	// NAT-PMP maps an alternative available port number if the requested
-	// port is already mapped to another address and returns success. In this
-	// case, we return an error because there is no way to return the new port
-	// to the caller.
+	// port is already mapped to another address and returns success.
 	if uint16(extport) != res.MappedExternalPort {
-		// Destroy the mapping in NAT device.
-		n.c.AddPortMapping(strings.ToLower(protocol), intport, 0, 0)
+		// For logging nat.Map(), detects alternative port loop.
+		for i := 0; i < 2; i++ {
+			n.portchanged <- res.MappedExternalPort
+		}
+
+		// As a result, an alternative port number is returned and used,
+		// but an error is returned because the requested port request
+		// failed. Print an error in the select statement of the map and
+		// control the value of the port change channel in the next time.
 		return fmt.Errorf("port %d already mapped to another address (%s)", extport, protocol)
 	}
 
@@ -76,6 +86,10 @@ func (n *pmp) DeleteMapping(protocol string, extport, intport int) (err error) {
 	return err
 }
 
+func (n *pmp) AlternativePort() chan uint16 {
+	return n.portchanged
+}
+
 func discoverPMP() Interface {
 	// run external address lookups on all potential gateways
 	gws := potentialGateways()
@@ -87,7 +101,7 @@ func discoverPMP() Interface {
 			if _, err := c.GetExternalAddress(); err != nil {
 				found <- nil
 			} else {
-				found <- &pmp{gw, c}
+				found <- &pmp{gw, c, make(chan uint16, 2)}
 			}
 		}()
 	}
