@@ -38,17 +38,12 @@ type Interface interface {
 	// protocol is "UDP" or "TCP". Some implementations allow setting
 	// a display name for the mapping. The mapping may be removed by
 	// the gateway when its lifetime ends.
-	AddMapping(protocol string, extport, intport int, name string, lifetime time.Duration) error
+	AddMapping(protocol string, extport, intport int, name string, lifetime time.Duration) (uint16, error)
 	DeleteMapping(protocol string, extport, intport int) error
 
 	// ExternalIP should return the external (Internet-facing)
 	// address of the gateway device.
 	ExternalIP() (net.IP, error)
-
-	// Channel for the current NAT state.
-	//
-	// AlternativePort detects maps alternative port in NAT-PMP.
-	AlternativePort() chan uint16
 
 	// String should return name of the method. This is used for logging.
 	String() string
@@ -96,7 +91,8 @@ func Parse(spec string) (Interface, error) {
 }
 
 const (
-	mapTimeout = 10 * time.Minute
+	DefaultMapTimeout = 10 * time.Minute
+	mapTimeout        = 10 * time.Minute
 )
 
 // Map adds a port mapping on m and keeps it alive until c is closed.
@@ -109,7 +105,7 @@ func Map(m Interface, c <-chan struct{}, protocol string, extport, intport int, 
 		log.Debug("Deleting port mapping")
 		m.DeleteMapping(protocol, extport, intport)
 	}()
-	if err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
+	if _, err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
 		log.Debug("Couldn't add port mapping", "err", err)
 	} else {
 		log.Info("Mapped network port")
@@ -122,12 +118,10 @@ func Map(m Interface, c <-chan struct{}, protocol string, extport, intport int, 
 			}
 		case <-refresh.C:
 			log.Trace("Refreshing port mapping")
-			if err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
+			if _, err := m.AddMapping(protocol, extport, intport, name, mapTimeout); err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
 			}
 			refresh.Reset(mapTimeout)
-		case p := <-m.AlternativePort():
-			log.Debug("Requested port already used, use alternative port", p)
 		}
 	}
 }
@@ -142,9 +136,8 @@ func (n ExtIP) String() string              { return fmt.Sprintf("ExtIP(%v)", ne
 
 // These do nothing.
 
-func (ExtIP) AddMapping(string, int, int, string, time.Duration) error { return nil }
-func (ExtIP) DeleteMapping(string, int, int) error                     { return nil }
-func (ExtIP) AlternativePort() chan uint16                             { return nil }
+func (ExtIP) AddMapping(string, int, int, string, time.Duration) (uint16, error) { return 0, nil }
+func (ExtIP) DeleteMapping(string, int, int) error                               { return nil }
 
 // Any returns a port mapper that tries to discover any supported
 // mechanism on the local network.
@@ -201,9 +194,9 @@ func startautodisc(what string, doit func() Interface) Interface {
 	return &autodisc{what: what, doit: doit}
 }
 
-func (n *autodisc) AddMapping(protocol string, extport, intport int, name string, lifetime time.Duration) error {
+func (n *autodisc) AddMapping(protocol string, extport, intport int, name string, lifetime time.Duration) (uint16, error) {
 	if err := n.wait(); err != nil {
-		return err
+		return 0, err
 	}
 	return n.found.AddMapping(protocol, extport, intport, name, lifetime)
 }
@@ -220,10 +213,6 @@ func (n *autodisc) ExternalIP() (net.IP, error) {
 		return nil, err
 	}
 	return n.found.ExternalIP()
-}
-
-func (n *autodisc) AlternativePort() chan uint16 {
-	return n.found.AlternativePort()
 }
 
 func (n *autodisc) String() string {

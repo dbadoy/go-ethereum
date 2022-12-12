@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -111,11 +112,46 @@ func main() {
 	realaddr := conn.LocalAddr().(*net.UDPAddr)
 	if natm != nil {
 		if !realaddr.IP.IsLoopback() {
-			go nat.Map(natm, nil, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
+			var (
+				protocol   = "udp"
+				name       = "ethereum discovery"
+				internal   = realaddr.Port
+				external   = realaddr.Port
+				mapTimeout = nat.DefaultMapTimeout
+			)
+			log := log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
+
+			p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
+			if err != nil {
+				log.Debug("Couldn't add port mapping", "err", err)
+			}
+			if p == uint16(external) {
+				log.Info("Mapped network port")
+			} else {
+				log.Debug("Already used port by another peers", external, "use alternative port", p)
+				external = int(p)
+				realaddr.Port = external
+			}
+
 			go func() {
-				for p := range natm.AlternativePort() {
-					natm.DeleteMapping("udp", int(p), realaddr.Port)
-					panic(fmt.Errorf("port %d already mapped to another address", realaddr.Port))
+				refresh := time.NewTimer(mapTimeout)
+				for {
+					<-refresh.C
+					log.Trace("Refreshing port mapping")
+					p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
+					if err != nil {
+						log.Debug("Couldn't add port mapping", "err", err)
+					}
+					if p != uint16(external) {
+						// #1
+						realaddr.Port = int(p)
+						printNotice(&nodeKey.PublicKey, *realaddr)
+
+						// #2
+						natm.DeleteMapping(protocol, int(p), internal)
+						panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", external, p))
+					}
+					refresh.Reset(mapTimeout)
 				}
 			}()
 		}

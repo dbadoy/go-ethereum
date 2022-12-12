@@ -583,20 +583,8 @@ func (srv *Server) setupDiscovery() error {
 		if !realaddr.IP.IsLoopback() {
 			srv.loopWG.Add(1)
 			go func() {
-				nat.Map(srv.NAT, srv.quit, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
+				srv.natRefresh(srv.NAT, "udp", realaddr.Port, realaddr.Port, "ethereum discovery")
 				srv.loopWG.Done()
-			}()
-			go func() {
-				// or use srv.changedport
-				for p := range srv.NAT.AlternativePort() {
-					realaddr.Port = int(p)
-					srv.changedport <- struct {
-						protocol string
-						port     uint16
-					}{"udp", p}
-					// srv.localnode.Set(enr.UDP(p))
-				}
-
 			}()
 		}
 	}
@@ -698,22 +686,22 @@ func (srv *Server) setupListening() error {
 
 	// Update the local node record and map the TCP listening port if NAT is configured.
 	if tcp, ok := listener.Addr().(*net.TCPAddr); ok {
-		srv.localnode.Set(enr.TCP(tcp.Port))
+		intport, extport := tcp.Port, tcp.Port
+		p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
+		if err != nil {
+			//
+		}
+		if p != uint16(tcp.Port) {
+			extport = int(p)
+		}
+
+		srv.localnode.Set(enr.TCP(extport))
+
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
 			srv.loopWG.Add(1)
 			go func() {
-				nat.Map(srv.NAT, srv.quit, "tcp", tcp.Port, tcp.Port, "ethereum p2p")
+				srv.natRefresh(srv.NAT, "tcp", intport, extport, "ethereum p2p")
 				srv.loopWG.Done()
-			}()
-			go func() {
-				for p := range srv.NAT.AlternativePort() {
-					tcp.Port = int(p)
-					srv.changedport <- struct {
-						protocol string
-						port     uint16
-					}{"tcp", p}
-					// srv.localnode.Set(enr.TCP(tcp.Port))
-				}
 			}()
 		}
 	}
@@ -721,6 +709,48 @@ func (srv *Server) setupListening() error {
 	srv.loopWG.Add(1)
 	go srv.listenLoop()
 	return nil
+}
+
+func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extport int, name string) {
+	var (
+		internal   = intport
+		external   = extport
+		mapTimeout = nat.DefaultMapTimeout
+	)
+	log := log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
+
+	refresh := time.NewTimer(mapTimeout)
+	for {
+		defer func() {
+			refresh.Stop()
+			log.Debug("Deleting port mapping")
+			natm.DeleteMapping(protocol, external, internal)
+		}()
+
+		for {
+			select {
+			case _, ok := <-srv.quit:
+				if !ok {
+					return
+				}
+			case <-refresh.C:
+				log.Trace("Refreshing port mapping")
+				p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
+				if err != nil {
+					log.Debug("Couldn't add port mapping", "err", err)
+				}
+				if p != uint16(external) {
+					log.Debug("Already used port", external, "use alternative port", p)
+					external = int(p)
+					srv.changedport <- struct {
+						protocol string
+						port     uint16
+					}{protocol, p}
+				}
+				refresh.Reset(mapTimeout)
+			}
+		}
+	}
 }
 
 // doPeerOp runs fn on the main loop.
