@@ -700,12 +700,12 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 		external   = extport
 		mapTimeout = interval
 
-		refreshLogger = func(p string, e int, i int, n nat.Interface) log.Logger {
+		newLogger = func(p string, e int, i int, n nat.Interface) log.Logger {
 			return log.New("proto", p, "extport", e, "intport", i, "interface", n)
 		}
 	)
 
-	log := refreshLogger(protocol, external, internal, natm)
+	log := newLogger(protocol, external, internal, natm)
 
 	p, err := srv.NAT.AddMapping(protocol, intport, extport, name, mapTimeout)
 	if err != nil {
@@ -713,7 +713,7 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 	} else {
 		log.Info("Mapped network port")
 		if p != uint16(external) {
-			log = refreshLogger(protocol, int(p), internal, natm)
+			log = newLogger(protocol, int(p), internal, natm)
 			log.Debug("Already mapped port", extport, "use alternative port", p)
 			external = int(p)
 		}
@@ -747,7 +747,7 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 				log.Debug("Couldn't add port mapping", "err", err)
 			} else {
 				if p != uint16(external) {
-					log = refreshLogger(protocol, int(p), internal, natm)
+					log = newLogger(protocol, int(p), internal, natm)
 					log.Debug("Already mapped port", external, "use alternative port", p)
 					external = int(p)
 
