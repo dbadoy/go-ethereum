@@ -707,7 +707,7 @@ func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extp
 	log := newLogger(protocol, external, internal, natm)
 
 	// Set to 0 to perform initial port mapping. It is set to
-	// mapTimeout in the next selection.
+	// mapTimeout in the next loop.
 	refresh := time.NewTimer(time.Duration(0))
 	defer func() {
 		refresh.Stop()
