@@ -706,25 +706,9 @@ func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extp
 
 	log := newLogger(protocol, external, internal, natm)
 
-	p, err := srv.NAT.AddMapping(protocol, intport, extport, name, mapTimeout)
-	if err != nil {
-		srv.log.Debug("Couldn't add port mapping", "err", err)
-	} else {
-		log.Info("Mapped network port")
-		if p != uint16(external) {
-			log.Debug("Already mapped port", extport, "use alternative port", p)
-			log = newLogger(protocol, int(p), internal, natm)
-			external = int(p)
-		}
-		switch protocol {
-		case "tcp":
-			srv.localnode.Set(enr.TCP(external))
-		case "udp":
-			srv.localnode.SetFallbackUDP(external)
-		}
-	}
-
-	refresh := time.NewTimer(mapTimeout)
+	// Set to 0 to perform initial port mapping. It is set to
+	// interval in the next selection.
+	refresh := time.NewTimer(time.Duration(0))
 	defer func() {
 		refresh.Stop()
 		log.Debug("Deleting port mapping")
@@ -738,11 +722,12 @@ func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extp
 				return
 			}
 		case <-refresh.C:
-			log.Trace("Refreshing port mapping")
+			log.Trace("Start port mapping")
 			p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
 			if err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
 			} else {
+				log.Info("Mapped network port")
 				if p != uint16(external) {
 					log.Debug("Already mapped port", external, "use alternative port", p)
 					log = newLogger(protocol, int(p), internal, natm)
