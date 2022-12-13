@@ -203,36 +203,6 @@ func TestServerDial(t *testing.T) {
 	}
 }
 
-func TestServerChangePort(t *testing.T) {
-	// run a one-shot TCP server to handle the connection.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("could not setup listener: %v", err)
-	}
-	defer listener.Close()
-
-	// start the server
-	connected := make(chan *Peer)
-	remid := &newkey().PublicKey
-	srv := startTestServer(t, remid, func(p *Peer) { connected <- p })
-	defer close(connected)
-	defer srv.Stop()
-
-	srv.changeport <- enr.TCP(12819)
-	time.Sleep(10 * time.Millisecond)
-	if srv.Self().TCP() != 12819 {
-		t.Fatalf("invalid port number, want: %v, got: %v\n", 12819, srv.Self().TCP())
-		return
-	}
-
-	srv.changeport <- enr.UDP(13819)
-	time.Sleep(10 * time.Millisecond)
-	if srv.Self().UDP() != 13819 {
-		t.Fatalf("invalid port number, want: %v, got: %v\n", 13819, srv.Self().UDP())
-		return
-	}
-}
-
 // This test checks that RemovePeer disconnects the peer if it is connected.
 func TestServerRemovePeerDisconnect(t *testing.T) {
 	srv1 := &Server{Config: Config{

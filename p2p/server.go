@@ -191,7 +191,6 @@ type Server struct {
 
 	// Channels into the run loop.
 	quit                    chan struct{}
-	changeport              chan enr.Entry
 	addtrusted              chan *enode.Node
 	removetrusted           chan *enode.Node
 	peerOp                  chan peerOpFunc
@@ -467,7 +466,6 @@ func (srv *Server) Start() (err error) {
 		srv.listenFunc = net.Listen
 	}
 	srv.quit = make(chan struct{})
-	srv.changeport = make(chan enr.Entry)
 	srv.delpeer = make(chan peerDrop)
 	srv.checkpointPostHandshake = make(chan *conn)
 	srv.checkpointAddPeer = make(chan *conn)
@@ -718,8 +716,6 @@ func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extp
 			log = newLogger(protocol, int(p), internal, natm)
 			external = int(p)
 		}
-		// Set it directly because it is an operation that is performed
-		// before Server.run is executed.
 		switch protocol {
 		case "tcp":
 			srv.localnode.Set(enr.TCP(external))
@@ -751,28 +747,17 @@ func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extp
 					log.Debug("Already mapped port", external, "use alternative port", p)
 					log = newLogger(protocol, int(p), internal, natm)
 					external = int(p)
-
-					if err := srv.changePort(protocol, uint16(external)); err != nil {
-						log.Debug("Couldn't change port on localnode", "err", err)
-					}
+				}
+				switch protocol {
+				case "tcp":
+					srv.localnode.Set(enr.TCP(external))
+				case "udp":
+					srv.localnode.SetFallbackUDP(external)
 				}
 			}
 			refresh.Reset(mapTimeout)
 		}
 	}
-}
-
-// changePort changes the port number of localnode.
-func (srv *Server) changePort(protocol string, port uint16) error {
-	switch protocol {
-	case "tcp":
-		srv.changeport <- enr.TCP(port)
-	case "udp":
-		srv.changeport <- enr.UDP(port)
-	default:
-		return fmt.Errorf("unsupported protocol %s", protocol)
-	}
-	return nil
 }
 
 // doPeerOp runs fn on the main loop.
@@ -809,14 +794,6 @@ running:
 		case <-srv.quit:
 			// The server was stopped. Run the cleanup logic.
 			break running
-
-		case entry := <-srv.changeport:
-			switch entry.ENRKey() {
-			case enr.TCP(0).ENRKey():
-				srv.localnode.Set(entry)
-			case enr.UDP(0).ENRKey():
-				srv.localnode.SetFallbackUDP(int(entry.(enr.UDP)))
-			}
 
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add a node
