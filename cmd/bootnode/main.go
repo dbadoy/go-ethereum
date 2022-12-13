@@ -146,13 +146,14 @@ func main() {
 					p, err := natm.AddMapping(protocol, extport, intport, name, mapTimeout)
 					if err != nil {
 						log.Debug("Couldn't add port mapping", "err", err)
-					}
-					if p != uint16(extport) {
-						// If the port mapping is changed after the boot node is executed and the
-						// URL is shared, there is no point in continuing the node. In this case,
-						// re-execute with an available port and share the URL again.
-						natm.DeleteMapping(protocol, int(p), intport)
-						panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", extport, p))
+					} else {
+						if p != uint16(extport) {
+							// If the port mapping is changed after the boot node is executed and the
+							// URL is shared, there is no point in continuing the node. In this case,
+							// re-execute with an available port and share the URL again.
+							natm.DeleteMapping(protocol, int(p), intport)
+							panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", extport, p))
+						}
 					}
 					refresh.Reset(mapTimeout)
 				}
