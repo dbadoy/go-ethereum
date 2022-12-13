@@ -577,22 +577,6 @@ func (srv *Server) setupDiscovery() error {
 	intport, extport := realaddr.Port, realaddr.Port
 	if srv.NAT != nil {
 		if !realaddr.IP.IsLoopback() {
-			srv.log.Info("Start Adding Maps to NAT")
-			// [NEED TO REMOVE] In this case, if the NAT doesn't respond, it will block for
-			// a long time. Have to decide whether we want to do the rest after the mapping,
-			// or run the goroutine and do the work first.
-			//
-			// Currently, it is not possible to distinguish whether the log is about for
-			// 'ethereum p2p' or 'ethereum discovery'.
-			p, err := srv.NAT.AddMapping("udp", intport, extport, "", nat.DefaultMapTimeout)
-			if err != nil {
-				srv.log.Debug("Couldn't add port mapping", "err", err)
-			}
-			if err == nil && p != uint16(realaddr.Port) {
-				srv.log.Debug("Already mapped port", realaddr.Port, "use alternative port", p)
-				extport = int(p)
-			}
-
 			srv.loopWG.Add(1)
 			go func() {
 				srv.natRefresh(srv.NAT, "udp", intport, extport, "ethereum discovery", nat.DefaultMapTimeout)
@@ -600,7 +584,6 @@ func (srv *Server) setupDiscovery() error {
 			}()
 		}
 	}
-	srv.localnode.SetFallbackUDP(extport)
 
 	// Discovery V4
 	var unhandled chan discover.ReadPacket
@@ -700,30 +683,12 @@ func (srv *Server) setupListening() error {
 	if tcp, ok := listener.Addr().(*net.TCPAddr); ok {
 		intport, extport := tcp.Port, tcp.Port
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
-			srv.log.Info("Start Adding Maps to NAT")
-			// [NEED TO REMOVE] In this case, if the NAT doesn't respond, it will block for
-			// a long time. Have to decide whether we want to do the rest after the mapping,
-			// or run the goroutine and do the work first.
-			//
-			// Currently, it is not possible to distinguish whether the log is about for
-			// 'ethereum p2p' or 'ethereum discovery'.
-			p, err := srv.NAT.AddMapping("tcp", intport, extport, "", nat.DefaultMapTimeout)
-			if err != nil {
-				srv.log.Debug("Couldn't add port mapping", "err", err)
-			}
-			if err == nil && p != uint16(tcp.Port) {
-				srv.log.Debug("Already mapped port", tcp.Port, "use alternative port", p)
-				extport = int(p)
-			}
-
 			srv.loopWG.Add(1)
 			go func() {
 				srv.natRefresh(srv.NAT, "tcp", intport, extport, "ethereum p2p", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
-
-		srv.localnode.Set(enr.TCP(extport))
 	}
 
 	srv.loopWG.Add(1)
@@ -736,8 +701,33 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 		internal   = intport
 		external   = extport
 		mapTimeout = interval
+
+		refreshLogger = func(p string, e int, i int, n nat.Interface) log.Logger {
+			return log.New("proto", p, "extport", e, "intport", i, "interface", n)
+		}
 	)
-	log := log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
+
+	log := refreshLogger(protocol, external, internal, natm)
+
+	p, err := srv.NAT.AddMapping(protocol, intport, extport, name, mapTimeout)
+	if err != nil {
+		srv.log.Debug("Couldn't add port mapping", "err", err)
+	} else {
+		log.Info("Mapped network port")
+		if p != uint16(external) {
+			log = refreshLogger(protocol, int(p), internal, natm)
+			log.Debug("Already mapped port", extport, "use alternative port", p)
+			external = int(p)
+		}
+		// Set it directly because it is an operation that is performed
+		// before Server.run is executed.
+		switch protocol {
+		case "tcp":
+			srv.localnode.Set(enr.TCP(external))
+		case "udp":
+			srv.localnode.SetFallbackUDP(external)
+		}
+	}
 
 	refresh := time.NewTimer(mapTimeout)
 	defer func() {
@@ -757,22 +747,27 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 			p, err := natm.AddMapping(protocol, external, internal, name, mapTimeout)
 			if err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
-			}
-			if p != uint16(external) {
-				log.Debug("Already mapped port", external, "use alternative port", p)
-				external = int(p)
+			} else {
+				if p != uint16(external) {
+					log = refreshLogger(protocol, int(p), internal, natm)
+					log.Debug("Already mapped port", external, "use alternative port", p)
+					external = int(p)
 
-				switch protocol {
-				case "tcp":
-					srv.changeport <- enr.TCP(external)
-				case "udp":
-					srv.changeport <- enr.UDP(external)
+					srv.changePort(protocol, uint16(external))
 				}
-				// Reset logger because extenral port number is changed.
-				log = log.New("proto", protocol, "extport", external, "intport", internal, "interface", natm)
 			}
 			refresh.Reset(mapTimeout)
 		}
+	}
+}
+
+// changePort changes the port number of localnode.
+func (srv *Server) changePort(protocol string, port uint16) {
+	switch protocol {
+	case "tcp":
+		srv.changeport <- enr.TCP(port)
+	case "udp":
+		srv.changeport <- enr.UDP(port)
 	}
 }
 
@@ -812,8 +807,12 @@ running:
 			break running
 
 		case entry := <-srv.changeport:
-			// [NEED TO REMOVE] entry validation logic? 'is the entry about port(TCP, UDP...)?'
-			srv.localnode.Set(entry)
+			switch entry.ENRKey() {
+			case enr.TCP(0).ENRKey():
+				srv.localnode.Set(entry)
+			case enr.UDP(0).ENRKey():
+				srv.localnode.SetFallbackUDP(int(entry.(enr.UDP)))
+			}
 
 		case n := <-srv.addtrusted:
 			// This channel is used by AddTrustedPeer to add a node
