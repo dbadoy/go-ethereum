@@ -142,7 +142,7 @@ func main() {
 				refresh := time.NewTimer(mapTimeout)
 				for {
 					<-refresh.C
-					log.Trace("Refreshing port mapping")
+					log.Trace("Start port mapping")
 					p, err := natm.AddMapping(protocol, extport, intport, name, mapTimeout)
 					if err != nil {
 						log.Debug("Couldn't add port mapping", "err", err)
