@@ -132,8 +132,8 @@ func main() {
 			} else {
 				log.Info("Mapped network port")
 				if p != uint16(extport) {
-					log = newLogger(protocol, int(p), intport, natm)
 					log.Debug("Already mapped port", extport, "use alternative port", p)
+					log = newLogger(protocol, int(p), intport, natm)
 					extport = int(p)
 				}
 			}

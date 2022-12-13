@@ -713,8 +713,8 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 	} else {
 		log.Info("Mapped network port")
 		if p != uint16(external) {
-			log = newLogger(protocol, int(p), internal, natm)
 			log.Debug("Already mapped port", extport, "use alternative port", p)
+			log = newLogger(protocol, int(p), internal, natm)
 			external = int(p)
 		}
 		// Set it directly because it is an operation that is performed
@@ -747,8 +747,8 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 				log.Debug("Couldn't add port mapping", "err", err)
 			} else {
 				if p != uint16(external) {
-					log = newLogger(protocol, int(p), internal, natm)
 					log.Debug("Already mapped port", external, "use alternative port", p)
+					log = newLogger(protocol, int(p), internal, natm)
 					external = int(p)
 
 					if err := srv.changePort(protocol, uint16(external)); err != nil {
