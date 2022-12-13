@@ -751,7 +751,9 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 					log.Debug("Already mapped port", external, "use alternative port", p)
 					external = int(p)
 
-					srv.changePort(protocol, uint16(external))
+					if err := srv.changePort(protocol, uint16(external)); err != nil {
+						log.Debug("Couldn't change port on localnode", "err", err)
+					}
 				}
 			}
 			refresh.Reset(mapTimeout)
@@ -760,13 +762,16 @@ func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extp
 }
 
 // changePort changes the port number of localnode.
-func (srv *Server) changePort(protocol string, port uint16) {
+func (srv *Server) changePort(protocol string, port uint16) error {
 	switch protocol {
 	case "tcp":
 		srv.changeport <- enr.TCP(port)
 	case "udp":
 		srv.changeport <- enr.UDP(port)
+	default:
+		return fmt.Errorf("unsupported protocol %s", protocol)
 	}
+	return nil
 }
 
 // doPeerOp runs fn on the main loop.
