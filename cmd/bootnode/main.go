@@ -129,13 +129,13 @@ func main() {
 			p, err := natm.AddMapping(protocol, extport, intport, name, mapTimeout)
 			if err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
-			}
-			if p == uint16(extport) {
-				log.Info("Mapped network port")
 			} else {
-				log = newLogger(protocol, int(p), intport, natm)
-				log.Debug("Already mapped port", extport, "use alternative port", p)
-				extport = int(p)
+				log.Info("Mapped network port")
+				if p != uint16(extport) {
+					log = newLogger(protocol, int(p), intport, natm)
+					log.Debug("Already mapped port", extport, "use alternative port", p)
+					extport = int(p)
+				}
 			}
 
 			go func() {
