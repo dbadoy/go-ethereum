@@ -578,7 +578,7 @@ func (srv *Server) setupDiscovery() error {
 		if !realaddr.IP.IsLoopback() {
 			srv.loopWG.Add(1)
 			go func() {
-				srv.natRefresh(srv.NAT, "udp", realaddr.Port, realaddr.Port, "ethereum discovery", nat.DefaultMapTimeout)
+				srv.natMapLoop(srv.NAT, "udp", realaddr.Port, realaddr.Port, "ethereum discovery", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
@@ -683,7 +683,7 @@ func (srv *Server) setupListening() error {
 		if !tcp.IP.IsLoopback() && srv.NAT != nil {
 			srv.loopWG.Add(1)
 			go func() {
-				srv.natRefresh(srv.NAT, "tcp", tcp.Port, tcp.Port, "ethereum p2p", nat.DefaultMapTimeout)
+				srv.natMapLoop(srv.NAT, "tcp", tcp.Port, tcp.Port, "ethereum p2p", nat.DefaultMapTimeout)
 				srv.loopWG.Done()
 			}()
 		}
@@ -694,7 +694,8 @@ func (srv *Server) setupListening() error {
 	return nil
 }
 
-func (srv *Server) natRefresh(natm nat.Interface, protocol string, intport, extport int, name string, interval time.Duration) {
+// natMapLoop performs initialization mapping for nat and repeats refresh.
+func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extport int, name string, interval time.Duration) {
 	var (
 		internal   = intport
 		external   = extport
