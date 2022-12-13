@@ -117,10 +117,14 @@ func main() {
 			intport    = realaddr.Port
 			extport    = realaddr.Port
 			mapTimeout = nat.DefaultMapTimeout
+
+			newLogger = func(p string, e int, i int, n nat.Interface) log.Logger {
+				return log.New("proto", p, "extport", e, "intport", i, "interface", n)
+			}
 		)
 
 		if !realaddr.IP.IsLoopback() {
-			log := log.New("proto", protocol, "extport", extport, "intport", intport, "interface", natm)
+			log := newLogger(protocol, extport, intport, natm)
 
 			p, err := natm.AddMapping(protocol, extport, intport, name, mapTimeout)
 			if err != nil {
@@ -129,10 +133,9 @@ func main() {
 			if p == uint16(extport) {
 				log.Info("Mapped network port")
 			} else {
-				log.Debug("Already mapped port by another peers", extport, "use alternative port", p)
+				log = newLogger(protocol, int(p), intport, natm)
+				log.Debug("Already mapped port", extport, "use alternative port", p)
 				extport = int(p)
-
-				log = log.New("proto", protocol, "extport", extport, "intport", intport, "interface", natm)
 			}
 
 			go func() {
