@@ -154,6 +154,7 @@ func main() {
 							natm.DeleteMapping(protocol, int(p), intport)
 							panic(fmt.Errorf("port %d already mapped to another address (hint: use %d", extport, p))
 						}
+						log.Info("Mapped network port")
 					}
 					refresh.Reset(mapTimeout)
 				}
