@@ -456,6 +456,7 @@ func TestServerSetupConn(t *testing.T) {
 	}
 }
 
+// TestChangeLocalNodePort tests for localnode port change in Server.natMapLoop.
 func TestChangeLocalNodePort(t *testing.T) {
 	tests := []struct {
 		protocol string
@@ -524,6 +525,7 @@ func TestChangeLocalNodePort(t *testing.T) {
 	}
 }
 
+// TestMapLoop checks if the alternate port is actually used by Server.natMapLoop.
 func TestMapLoop(t *testing.T) {
 	srvkey := newkey()
 	srv := &Server{
@@ -556,6 +558,11 @@ func TestMapLoop(t *testing.T) {
 			t.Fatalf("natMapLoop does not make requests to alternate ports: got %d want %d", srv.localnode.Node().UDP(), int(mock.mapped))
 		}
 		time.Sleep(interval)
+
+		// In the last interval, the alternate port is changed once more.
+		if i == 2 {
+			mock.mapped = 50000
+		}
 	}
 	close(srv.quit)
 }
@@ -571,10 +578,10 @@ func (m *mockNAT) DeleteMapping(protocol string, extport, intport int) error {
 	return nil
 }
 func (m *mockNAT) ExternalIP() (net.IP, error) {
-	return nil, nil
+	panic("not implemented")
 }
 func (m *mockNAT) String() string {
-	return ""
+	panic("not implemented")
 }
 
 type setupTransport struct {
