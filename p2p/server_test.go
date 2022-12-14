@@ -519,7 +519,7 @@ func TestChangeLocalNodePort(t *testing.T) {
 		case "udp":
 			port = srv.localnode.Node().UDP()
 		}
-		if port != int(test.response) {
+		if port != test.response {
 			t.Fatalf("couldn't change the port number on localnode: got %d want %d", port, test.response)
 		}
 	}
