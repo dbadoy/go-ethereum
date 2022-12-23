@@ -95,7 +95,7 @@ func discoverPMP() Interface {
 	}
 
 	// return the one that responds first.
-	for recv := 0; recv < len(gws); recv++ {
+	for range gws {
 		c := <-found
 		if c != nil {
 			return &pmp{c.gw, natpmp.NewClient(c.gw)}
