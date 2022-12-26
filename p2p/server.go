@@ -727,12 +727,13 @@ func (srv *Server) natMapLoop(natm nat.Interface, protocol string, intport, extp
 			if err != nil {
 				log.Debug("Couldn't add port mapping", "err", err)
 			} else {
-				log.Info("Mapped network port")
 				if p != uint16(external) {
 					log.Debug("Already mapped port", external, "use alternative port", p)
 					log = newLogger(protocol, int(p), internal, natm)
 					external = int(p)
 				}
+				log.Info("Mapped network port")
+				
 				switch protocol {
 				case "tcp":
 					srv.localnode.Set(enr.TCP(external))
