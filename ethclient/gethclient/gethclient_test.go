@@ -202,7 +202,7 @@ func testAccessList(t *testing.T, client *rpc.Client) {
 func testGetProof(t *testing.T, client *rpc.Client) {
 	ec := New(client)
 	ethcl := ethclient.NewClient(client)
-	result, err := ec.GetProof(context.Background(), testAddr, []string{testSlot.String()}, nil)
+	result, err := ec.GetProof(context.Background(), testAddr, []string{testSlot.String()}, LatestBlockNumber)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,12 +210,12 @@ func testGetProof(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected address, want: %v got: %v", testAddr, result.Address)
 	}
 	// test nonce
-	nonce, _ := ethcl.NonceAt(context.Background(), result.Address, nil)
+	nonce, _ := ethcl.NonceAt(context.Background(), result.Address, LatestBlockNumber)
 	if result.Nonce != nonce {
 		t.Fatalf("invalid nonce, want: %v got: %v", nonce, result.Nonce)
 	}
 	// test balance
-	balance, _ := ethcl.BalanceAt(context.Background(), result.Address, nil)
+	balance, _ := ethcl.BalanceAt(context.Background(), result.Address, LatestBlockNumber)
 	if result.Balance.Cmp(balance) != 0 {
 		t.Fatalf("invalid balance, want: %v got: %v", balance, result.Balance)
 	}
@@ -224,7 +224,7 @@ func testGetProof(t *testing.T, client *rpc.Client) {
 		t.Fatalf("invalid storage proof, want 1 proof, got %v proof(s)", len(result.StorageProof))
 	}
 	proof := result.StorageProof[0]
-	slotValue, _ := ethcl.StorageAt(context.Background(), testAddr, testSlot, nil)
+	slotValue, _ := ethcl.StorageAt(context.Background(), testAddr, testSlot, LatestBlockNumber)
 	if !bytes.Equal(slotValue, proof.Value.Bytes()) {
 		t.Fatalf("invalid storage proof value, want: %v, got: %v", slotValue, proof.Value.Bytes())
 	}
