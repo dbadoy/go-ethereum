@@ -32,6 +32,13 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+var (
+	LatestBlockNumber    *big.Int = nil
+	PendingBlockNumber            = big.NewInt(-1)
+	FinalizedBlockNumber          = big.NewInt(int64(rpc.FinalizedBlockNumber))
+	SafeBlockNumber               = big.NewInt(int64(rpc.SafeBlockNumber))
+)
+
 // Client is a wrapper around rpc.Client that implements geth-specific functionality.
 //
 // If you want to use the standardized Ethereum RPC functionality, use ethclient.Client instead.
@@ -177,19 +184,16 @@ func (ec *Client) SubscribePendingTransactions(ctx context.Context, ch chan<- co
 }
 
 func toBlockNumArg(number *big.Int) string {
-	if number == nil {
+	if number == LatestBlockNumber {
 		return "latest"
 	}
-	pending := big.NewInt(-1)
-	if number.Cmp(pending) == 0 {
+	if number.Cmp(PendingBlockNumber) == 0 {
 		return "pending"
 	}
-	finalized := big.NewInt(int64(rpc.FinalizedBlockNumber))
-	if number.Cmp(finalized) == 0 {
+	if number.Cmp(FinalizedBlockNumber) == 0 {
 		return "finalized"
 	}
-	safe := big.NewInt(int64(rpc.SafeBlockNumber))
-	if number.Cmp(safe) == 0 {
+	if number.Cmp(SafeBlockNumber) == 0 {
 		return "safe"
 	}
 	return hexutil.EncodeBig(number)

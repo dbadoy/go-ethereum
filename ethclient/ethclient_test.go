@@ -387,7 +387,7 @@ func testTransactionInBlockInterrupted(t *testing.T, client *rpc.Client) {
 	ec := NewClient(client)
 
 	// Get current block by number.
-	block, err := ec.BlockByNumber(context.Background(), nil)
+	block, err := ec.BlockByNumber(context.Background(), LatestBlockNumber)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -598,7 +598,7 @@ func testAtFunctions(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected pending, wanted 1 got: %v", pending)
 	}
 	// Query balance
-	balance, err := ec.BalanceAt(context.Background(), testAddr, nil)
+	balance, err := ec.BalanceAt(context.Background(), testAddr, LatestBlockNumber)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -610,7 +610,7 @@ func testAtFunctions(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected balance: %v %v", balance, penBalance)
 	}
 	// NonceAt
-	nonce, err := ec.NonceAt(context.Background(), testAddr, nil)
+	nonce, err := ec.NonceAt(context.Background(), testAddr, LatestBlockNumber)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -622,7 +622,7 @@ func testAtFunctions(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected nonce: %v %v", nonce, penNonce)
 	}
 	// StorageAt
-	storage, err := ec.StorageAt(context.Background(), testAddr, common.Hash{}, nil)
+	storage, err := ec.StorageAt(context.Background(), testAddr, common.Hash{}, LatestBlockNumber)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -634,7 +634,7 @@ func testAtFunctions(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected storage: %v %v", storage, penStorage)
 	}
 	// CodeAt
-	code, err := ec.CodeAt(context.Background(), testAddr, nil)
+	code, err := ec.CodeAt(context.Background(), testAddr, LatestBlockNumber)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
