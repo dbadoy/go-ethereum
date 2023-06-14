@@ -337,9 +337,10 @@ func (c *BoundContract) createLegacyTx(opts *TransactOpts, contract *common.Addr
 }
 
 func (c *BoundContract) estimateGasLimit(opts *TransactOpts, contract *common.Address, input []byte, gasPrice, gasTipCap, gasFeeCap, value *big.Int) (uint64, error) {
+	ctx := ensureContext(opts.Context)
 	if contract != nil {
 		// Gas estimation cannot succeed without code for method invocations.
-		if code, err := c.transactor.PendingCodeAt(ensureContext(opts.Context), c.address); err != nil {
+		if code, err := c.transactor.PendingCodeAt(ctx, c.address); err != nil {
 			return 0, err
 		} else if len(code) == 0 {
 			return 0, ErrNoCode
@@ -354,7 +355,7 @@ func (c *BoundContract) estimateGasLimit(opts *TransactOpts, contract *common.Ad
 		Value:     value,
 		Data:      input,
 	}
-	return c.transactor.EstimateGas(ensureContext(opts.Context), msg)
+	return c.transactor.EstimateGas(ctx, msg)
 }
 
 func (c *BoundContract) getNonce(opts *TransactOpts) (uint64, error) {
@@ -375,6 +376,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	var (
 		rawTx *types.Transaction
 		err   error
+		ctx   = ensureContext(opts.Context)
 	)
 	if opts.GasPrice != nil {
 		rawTx, err = c.createLegacyTx(opts, contract, input)
@@ -382,7 +384,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 		rawTx, err = c.createDynamicTx(opts, contract, input, nil)
 	} else {
 		// Only query for basefee if gasPrice not specified
-		if head, errHead := c.transactor.HeaderByNumber(ensureContext(opts.Context), nil); errHead != nil {
+		if head, errHead := c.transactor.HeaderByNumber(ctx, nil); errHead != nil {
 			return nil, errHead
 		} else if head.BaseFee != nil {
 			rawTx, err = c.createDynamicTx(opts, contract, input, head)
@@ -405,7 +407,7 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	if opts.NoSend {
 		return signedTx, nil
 	}
-	if err := c.transactor.SendTransaction(ensureContext(opts.Context), signedTx); err != nil {
+	if err := c.transactor.SendTransaction(ctx, signedTx); err != nil {
 		return nil, err
 	}
 	return signedTx, nil
