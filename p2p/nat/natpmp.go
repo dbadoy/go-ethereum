@@ -76,7 +76,9 @@ func discoverPMP() Interface {
 	for i := range gws {
 		gw := gws[i]
 		go func() {
-			c := natpmp.NewClient(gw)
+			// discovery needs to be quick, so we stop request to NAT
+			// if the result doesn't come in the timeout.
+			c := natpmp.NewClientWithTimeout(gw, time.Second)
 			if _, err := c.GetExternalAddress(); err != nil {
 				found <- nil
 			} else {
@@ -84,19 +86,12 @@ func discoverPMP() Interface {
 			}
 		}()
 	}
+
 	// return the one that responds first.
-	// discovery needs to be quick, so we stop caring about
-	// any responses after a very short timeout.
-	timeout := time.NewTimer(1 * time.Second)
-	defer timeout.Stop()
 	for range gws {
-		select {
-		case c := <-found:
-			if c != nil {
-				return c
-			}
-		case <-timeout.C:
-			return nil
+		c := <-found
+		if c != nil {
+			return &pmp{c.gw, natpmp.NewClient(c.gw)}
 		}
 	}
 	return nil
