@@ -142,6 +142,7 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 	// of sendCases. When a send succeeds, the corresponding case moves to the end of
 	// 'cases' and it shrinks by one element.
 	cases := f.sendCases
+
 	for {
 		// Fast path: try sending without blocking before adding to the select set.
 		// This should usually succeed if subscribers are fast enough and have free
@@ -149,6 +150,7 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 		for i := firstSubSendCase; i < len(cases); i++ {
 			if cases[i].Chan.TrySend(rvalue) {
 				nsent++
+				cases[i].Send = reflect.Value{}
 				cases = cases.deactivate(i)
 				i--
 			}
@@ -166,15 +168,13 @@ func (f *Feed) Send(value interface{}) (nsent int) {
 				cases = f.sendCases[:len(cases)-1]
 			}
 		} else {
+			cases[chosen].Send = reflect.Value{}
 			cases = cases.deactivate(chosen)
 			nsent++
 		}
 	}
 
-	// Forget about the sent value and hand off the send lock.
-	for i := firstSubSendCase; i < len(f.sendCases); i++ {
-		f.sendCases[i].Send = reflect.Value{}
-	}
+	// Hand off the send lock.
 	f.sendLock <- struct{}{}
 	return nsent
 }
